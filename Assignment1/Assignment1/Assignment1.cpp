@@ -4,6 +4,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
+#include <fstream>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include "Settings.cpp"
@@ -12,6 +13,7 @@
 
 using namespace cv;
 using namespace std;
+
 
 int main(int argc, char** argv)
 {
@@ -35,13 +37,17 @@ int main(int argc, char** argv)
     Size board_size = Size(s.boardSize);
     Mat overall_dist_coeffs;
     Mat overall_intrinsic = Mat(3, 3, CV_32FC1);
+    vector<Mat> overall_rvecs;
+    vector<Mat> overall_tvecs;
 
     overall_intrinsic.ptr<float>(0)[0] = 1;
     overall_intrinsic.ptr<float>(1)[1] = 1;
 
     bool done = false;
-    double previous_rms = 10;
-    while(done == false)
+    double best_rms = 10;
+    int loop = 0;
+
+    while(done == false and loop < s.imageList.size())
     {
         vector<vector<Point2f>> image_points;
         vector<vector<Point3f>> object_points;
@@ -52,6 +58,8 @@ int main(int argc, char** argv)
                 objects.push_back(Point3f((float)j * s.squareSize, (float)i * s.squareSize, 0));
 
         vector<String> images = s.imageList;
+        images.erase(images.begin() + loop);
+        //std::cout << images.size();
         for (int image_amount = 0; image_amount < images.size(); image_amount++)
         {
             image = imread(images[image_amount], IMREAD_COLOR);
@@ -69,10 +77,9 @@ int main(int argc, char** argv)
                 image_points.push_back(image_corners);
                 object_points.push_back(objects);
             }
-            namedWindow("Image display");
-            imshow("window", image);
+            //namedWindow("Image display");
+            //imshow("window", image);
             //waitKey(0);
-            image = s.nextImage();
 
             if (waitKey(10) == 27)
             {
@@ -80,30 +87,51 @@ int main(int argc, char** argv)
             }
         }
 
-        Mat intrinsic = overall_intrinsic;
-        Mat dist_coeffs = overall_dist_coeffs;
+        Mat intrinsic = overall_intrinsic.clone();
+        Mat dist_coeffs = overall_dist_coeffs.clone();
         vector<Mat> rvecs;
         vector<Mat> tvecs;
 
         double rms = calibrateCamera(object_points, image_points, image_size, intrinsic, dist_coeffs, rvecs, tvecs);
-        if (rms < previous_rms)
+        if (rms < best_rms)
         {
             overall_intrinsic = intrinsic;
             overall_dist_coeffs = dist_coeffs;
-            previous_rms = rms;
-        }
-        else 
-        {
-            done = true;
+            overall_rvecs = rvecs;
+            overall_tvecs = tvecs;
+            best_rms = rms;
         }
 
-        std::cout << "\n Root mean square: " << rms;
-        std::cout << "\n intrinsic: " << intrinsic;
-        std::cout << "\n overall_intrinsic: " << overall_intrinsic;
+        //std::cout << "\n Root mean square: " << rms << "\n";
+        //std::cout << "\n intrinsic: " << intrinsic << "\n";
 
-        std::cout << "\n distCoeffs: " << dist_coeffs << "\n";
-        std::cout << "\n overall_dist_coeffs: " << overall_dist_coeffs << "\n";
+        //std::cout << "\n distCoeffs: " << dist_coeffs << "\n";
+        loop++;
     }
+
+    /*double new_best_rms = 2.21115;
+    Mat overall_dist_coeffs;
+    overall_dist_coeffs.setTo((0.08982088366543066, -0.3587634505363069, -0.0001607385585405284, 0.0006984187450869396, -0.5076361699022028));
+
+    Mat overall_intrinsic = Mat((1784.272994731757, 0, 945.319154612644), (0, 1759.250305069632, 508.9901046170839), (0, 0, 1));
+    */
+    std::cout << "\n Best root mean square: " << best_rms << "\n";
+    std::cout << "\n overall_dist_coeffs: " << overall_dist_coeffs << "\n";
+    std::cout << "\n overall_intrinsic: " << overall_intrinsic << "\n";
+
+    VideoCapture camera = VideoCapture();
+    camera.open(1);
+    if (!camera.isOpened()) {
+        cerr << "ERROR: Could not open camera" << endl;
+        return 1;
+    }
+    camera >> image;
+
+    //drawFrameAxes(image, overall_intrinsic, overall_dist_coeffs, overall_rvecs, overall_tvecs, 2, 3);
+
+    cv::namedWindow("Image display");
+    cv::imshow("window", image);
+    //waitKey(0);
 
     return 0;
 }

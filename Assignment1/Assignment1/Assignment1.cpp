@@ -15,15 +15,8 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-    const String keys
-        = "{help h usage ? |           | print this message            }"
-        "{@settings        |default.xml| input setting file            }"
-        "{d                |           | actual distance between top-left and top-right corners of "
-        "the calibration grid }"
-        "{winSize          | 11        | Half of search window for cornerSubPix }";
-
-    CommandLineParser parser(argc, argv, keys);
     Settings s;
+    CommandLineParser parser = s.initParser(argc, argv);
     const string inputSettingsFile = parser.get<string>(0);
     FileStorage fs(inputSettingsFile, FileStorage::READ);
     if (!fs.isOpened())
@@ -141,10 +134,11 @@ int main(int argc, char** argv)
     intrinsic.ptr<float>(0)[0] = 1;
     intrinsic.ptr<float>(1)[1] = 1;
 
-    calibrateCamera(object_points, image_points, image_size, intrinsic, distCoeffs, rvecs, tvecs);
+    double rms = calibrateCamera(object_points, image_points, image_size, intrinsic, distCoeffs, rvecs, tvecs);
 
-    cout << "\n\n intrinsic:-\n" << intrinsic;
-    cout << "\n\n distCoeffs:-\n" << distCoeffs;
+    cout << "\n Root mean square: " << rms;
+    cout << "\n intrinsic: " << intrinsic;
+    cout << "\n distCoeffs: " << distCoeffs << "\n";
 
     return 0;
 }

@@ -1,4 +1,6 @@
 <?xml version="1.0"?>
 <opencv_storage>
-<images>chess\\IMG_1.jpg chess\\IMG_2.jpg chess\\IMG_3.jpg chess\\IMG_4.jpg chess\\IMG_5.jpg chess\\IMG_6.jpg chess\\IMG_7.jpg chess\\IMG_8.jpg chess\\IMG_9.jpg chess\\IMG_10.jpg chess\\IMG_11.jpg chess\\IMG_12.jpg chess\\IMG_13.jpg chess\\IMG_14.jpg chess\\IMG_15.jpg</images>
+  <!-- <images>chess\\IMG_1.jpg chess\\IMG_2.jpg chess\\IMG_3.jpg chess\\IMG_4.jpg chess\\IMG_5.jpg</images>-->
+  <!-- <images>chess\\IMG_1.jpg chess\\IMG_2.jpg chess\\IMG_3.jpg chess\\IMG_4.jpg chess\\IMG_5.jpg chess\\IMG_6.jpg chess\\IMG_7.jpg chess\\IMG_8.jpg chess\\IMG_9.jpg chess\\IMG_10.jpg chess\\IMG_11.jpg chess\\IMG_12.jpg chess\\IMG_13.jpg chess\\IMG_14.jpg</images>-->
+  <images>chess\\IMG_1.jpg chess\\IMG_2.jpg chess\\IMG_3.jpg chess\\IMG_4.jpg chess\\IMG_5.jpg chess\\IMG_6.jpg chess\\IMG_7.jpg chess\\IMG_8.jpg chess\\IMG_9.jpg chess\\IMG_10.jpg chess\\IMG_11.jpg chess\\IMG_12.jpg chess\\IMG_13.jpg</images>
 </opencv_storage>

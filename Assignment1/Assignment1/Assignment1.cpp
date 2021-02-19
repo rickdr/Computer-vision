@@ -16,13 +16,7 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-    //double debug_best_rms = 2.2111502248730317;
-    //Mat debug_overall_dist_coeffs = Mat(1, 5, CV_32FC1, new double[0.08982088366543066, -0.3587634505363069, -0.0001607385585405284, 0.0006984187450869396, -0.5076361699022028]);
-
-    //float vars[3][3] = { {1784.272994731757, 0, 945.319154612644}, {0, 1759.250305069632, 508.9901046170839}, {0, 0, 1 } };
-    //Mat debug_overall_intrinsic = Mat(3, 3, CV_32FC1, vars);
-
-    //// Read the settings from default.xml
+    // Read the settings from default.xml
     Settings s;
     CommandLineParser parser = s.initParser(argc, argv);
     const string inputSettingsFile = parser.get<string>(0);
@@ -35,39 +29,6 @@ int main(int argc, char** argv)
     }
     fs["Settings"] >> s;
     fs.release();
-
-    //// Video Capture
-    //VideoCapture debug_camera(1);
-    //if (!debug_camera.isOpened()) {
-    //    cerr << "ERROR: Could not open camera" << endl;
-    //    return 1;
-    //}
-
-    //// Create windows to display the images from the webcam before and after modification
-    //cv::namedWindow("Webcam", WINDOW_AUTOSIZE);
-    //cv::namedWindow("Undistorted", WINDOW_AUTOSIZE);
-
-    //// capture frame by frame from the webcam
-    //Mat debug_frame;
-    //Mat debug_imageUndistorted;
-    //debug_camera >> debug_frame;
-    //bool debug_running = true;
-    //while (debug_running) {
-    //    undistort(debug_frame, debug_imageUndistorted, debug_overall_intrinsic, debug_overall_dist_coeffs);
-
-    //    imshow("Webcam", debug_frame);
-    //    imshow("Undistorted", debug_imageUndistorted);
-
-    //    debug_camera >> debug_frame;
-
-    //    if (waitKey(10) == 27)
-    //    {
-    //        destroyWindow("Webcam");
-    //        destroyWindow("Undistorted");
-    //        debug_running = false;
-    //    }
-    //}
-    //debug_camera.release();
 
     // Initialization of variables
     Mat image, gray_image;
@@ -117,25 +78,28 @@ int main(int argc, char** argv)
 
         for (int image_amount = 0; image_amount < subset_images.size(); image_amount++)
         {
-            //std::cout << "\r" << "Processing image: " << image_amount;
             image = imread(subset_images[image_amount], IMREAD_COLOR);
             image_size = image.size();
 
             vector<Point2f> image_corners;
+
+            // Gray scale the image
             cvtColor(image, gray_image, COLOR_BGR2GRAY);
+
+            // Find the chessboard-patttern corners
             bool found_chessboard = findChessboardCorners(gray_image, board_size, image_corners);
 
             if (found_chessboard)
             {
+                // Improve the found corners
                 cornerSubPix(gray_image, image_corners, Size(11, 11), Size(-1, -1), TermCriteria(TermCriteria::EPS + TermCriteria::MAX_ITER, 30, 0.1));
+
+                // Draw the found chessboard corners
                 drawChessboardCorners(image, board_size, Mat(image_corners), found_chessboard);
 
                 image_points.push_back(image_corners);
                 object_points.push_back(objects);
             }
-            //namedWindow("Image display");
-            //imshow("window", image);
-            //waitKey(0);
 
             if (waitKey(10) == 27)
             {
@@ -148,8 +112,9 @@ int main(int argc, char** argv)
 
         // Run calibration with the parameters found in the current set and update high scores accordingly.
         float rms = calibrateCamera(object_points, image_points, image_size, intrinsic, dist_coeffs, rvecs, tvecs);
-        if (abs(best_rms - rms) > 0.05)
-        //if (best_rms > rms)
+
+        // When the altared set has a significant better rms we replace the current best, and save the variables of this set
+        if (abs(best_rms - rms) > 0.5)
         {
             overall_object_points = object_points;
             overall_image_points = image_points;
@@ -161,8 +126,6 @@ int main(int argc, char** argv)
             best_rms = rms;
             images = subset_images;
             std::cout << "\r";
-
-            //loop--;
         }
 
         loop++;
@@ -171,15 +134,6 @@ int main(int argc, char** argv)
     }
     std::cout << "Calibration completed." << "\n";
     std::cout << "Best rms: " << best_rms << "\n";
-    /*for (size_t i = 0; i < overall_object_points.size(); i++)
-    {
-        std::cout << "Final object points " << i << ": " << overall_object_points[i] << "\n";
-    }
-    for (size_t i = 0; i < overall_image_points.size(); i++)
-    {
-        std::cout << "Final image points: " << i << ": " << overall_image_points[i] << "\n";
-    }
-    std::cout << "Final image size: " << overall_image_size << "\n";*/
     std::cout << "Final intrinsic: " << overall_intrinsic << "\n";
     std::cout << "Final dist coeffs: " << overall_dist_coeffs << "\n";
 
@@ -203,7 +157,10 @@ int main(int argc, char** argv)
         vector<Point3f> objects, cube_points_background, cube_points;
         vector<Point2f> frame_points, frame_points_background, frame_corners;
 
+        // Apply the intrinsic matrix to the image
         undistort(frame, frame_undistorted, overall_intrinsic, overall_dist_coeffs);
+
+        // Make the undistorted image grey 
         cvtColor(frame_undistorted, gray_image, COLOR_BGR2GRAY);
 
         // Create the points on the board in 3d space, with the origin on the corner of square (0,0)
@@ -219,11 +176,14 @@ int main(int argc, char** argv)
                 cube_points.push_back(Point3f((float)j * s.squareSize, (float)i * s.squareSize, (-(s.squareSize*2))));
             }
         }
-
+        // Find the corners of the chessboard
         bool found_chessboard = findChessboardCorners(gray_image, board_size, frame_corners);
         if (found_chessboard)
         {
+            // Improve the chessboard corners
             solvePnP(objects, Mat(frame_corners), overall_intrinsic, dist_coeffs, rvecs, tvecs);
+
+            // Project the points
             projectPoints(cube_points_background, rvecs, tvecs, overall_intrinsic, dist_coeffs, frame_points_background);
             projectPoints(cube_points, rvecs, tvecs, overall_intrinsic, dist_coeffs, frame_points);
 
@@ -258,90 +218,3 @@ int main(int argc, char** argv)
 
     return 0;
 }
-
-//if (false)
-//{
-//    if (s.inputType == 1)
-//    {
-//        image_amount = 0;
-//        clock_t image_taken_time = clock();
-//        VideoCapture camera = s.inputCapture;
-//        if (!camera.isOpened()) {
-//            cerr << "ERROR: Could not open camera" << endl;
-//            return 1;
-//        }
-//        namedWindow("Webcam", WINDOW_AUTOSIZE);
-//        while (image_amount < 5)
-//        {
-//            Mat gray_image;
-//            vector<Point2f> image_corners;
-
-//            camera >> image;
-//            image_size = image.size();
-//            imshow("Webcam", image);
-//            cvtColor(image, gray_image, COLOR_BGR2GRAY);
-//            //bool found_chessboard = false;
-//            bool found_chessboard = findChessboardCorners(gray_image, board_size, image_corners);
-
-//            if (found_chessboard)
-//            {
-//                cornerSubPix(gray_image, image_corners, Size(11, 11), Size(-1, -1), TermCriteria(TermCriteria::EPS + TermCriteria::MAX_ITER, 30, 0.1));
-//                drawChessboardCorners(image, board_size, Mat(image_corners), found_chessboard);
-
-//                if (waitKey(10) == 32)
-//                {
-//                    image_points.push_back(image_corners);
-//                    object_points.push_back(objects);
-
-//                    image_amount += 1;
-//                    image_taken_time = clock();
-
-//                    std::cout << "printing" << image_amount;
-//                    namedWindow("Photo " + to_string(image_amount), WINDOW_AUTOSIZE);
-//                    imshow("Photo " + to_string(image_amount), image);
-//                }
-//            }
-//            else {
-//                if (waitKey(10) == 27)
-//                {
-//                    break;
-//                }
-//            }
-//        }
-
-//        camera.release();
-//    }
-//    else
-//    {
-//        image = s.nextImage();
-//        image_size = image.size();
-//        image_amount = 0;
-//        while (!image.empty() and image_amount < s.nrFrames)
-//        {
-//            Mat gray_image;
-//            vector<Point2f> image_corners;
-//            cvtColor(image, gray_image, COLOR_BGR2GRAY);
-//            bool found_chessboard = findChessboardCorners(gray_image, board_size, image_corners);
-
-//            if (found_chessboard)
-//            {
-//                cornerSubPix(gray_image, image_corners, Size(11, 11), Size(-1, -1), TermCriteria(TermCriteria::EPS + TermCriteria::MAX_ITER, 30, 0.1));
-//                drawChessboardCorners(image, board_size, Mat(image_corners), found_chessboard);
-
-//                image_points.push_back(image_corners);
-//                object_points.push_back(objects);
-//            }
-//            namedWindow("Image display");
-//            imshow("window", image);
-//            //waitKey(0);
-
-//            image_amount += 1;
-//            image = s.nextImage();
-
-//            if (waitKey(10) == 27)
-//            {
-//                break;
-//            }
-//        }
-//    }
-//}

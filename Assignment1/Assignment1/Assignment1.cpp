@@ -1,6 +1,4 @@
-// opencv-1.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
-
+// Assignment1.cpp : This file contains the 'main' function. Program execution begins and ends there.
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
@@ -8,8 +6,6 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include "Settings.cpp"
-//#include "calibration.cpp"
-//#include <parser.h>
 
 using namespace cv;
 using namespace std;
@@ -114,7 +110,7 @@ int main(int argc, char** argv)
         float rms = calibrateCamera(object_points, image_points, image_size, intrinsic, dist_coeffs, rvecs, tvecs);
 
         // When the altared set has a significant better rms we replace the current best, and save the variables of this set
-        if (abs(best_rms - rms) > 0.5)
+        if (abs(best_rms - rms) > 0.01) // > 0.5)
         {
             overall_object_points = object_points;
             overall_image_points = image_points;
@@ -149,7 +145,7 @@ int main(int argc, char** argv)
     cv::namedWindow("Undistorted", WINDOW_AUTOSIZE);
 
     // capture frame by frame from the webcam
-    Mat frame, intrinsic, dist_coeffs, rvecs, tvecs, frame_undistorted;
+    Mat frame, frame_gray, intrinsic, dist_coeffs, rvecs, tvecs, frame_undistorted;
     bool running = true;
     camera >> frame;
     while (running) {
@@ -161,7 +157,7 @@ int main(int argc, char** argv)
         undistort(frame, frame_undistorted, overall_intrinsic, overall_dist_coeffs);
 
         // Make the undistorted image grey 
-        cvtColor(frame_undistorted, gray_image, COLOR_BGR2GRAY);
+        cvtColor(frame_undistorted, frame_gray, COLOR_BGR2GRAY);
 
         // Create the points on the board in 3d space, with the origin on the corner of square (0,0)
         for (int i = 0; i < board_size.height; i++)
@@ -176,8 +172,9 @@ int main(int argc, char** argv)
                 cube_points.push_back(Point3f((float)j * s.squareSize, (float)i * s.squareSize, (-(s.squareSize*2))));
             }
         }
+        
         // Find the corners of the chessboard
-        bool found_chessboard = findChessboardCorners(gray_image, board_size, frame_corners);
+        bool found_chessboard = findChessboardCorners(frame_gray, board_size, frame_corners);
         if (found_chessboard)
         {
             // Improve the chessboard corners
@@ -189,17 +186,25 @@ int main(int argc, char** argv)
 
             // possible line colors
             vector<Scalar> colors = { Scalar(255,0,0), Scalar(0,255,0), Scalar(0,0,255) };
+            Scalar color = colors[rand() % colors.size()], color_background = colors[rand() % colors.size()], color_dimension = colors[rand() % colors.size()];
 
-            // indexes of start and end points of lines to draw
-            vector<tuple<int, int>> draw_points = { make_tuple(0,2), make_tuple(2,8), make_tuple(6,0), make_tuple(8,6) };
+            // First draw the background
+            line(frame_undistorted, frame_points_background[0], frame_points_background[2], color_background, 3);
+            line(frame_undistorted, frame_points_background[2], frame_points_background[8], color_background, 3);
+            line(frame_undistorted, frame_points_background[6], frame_points_background[0], color_background, 3);
+            line(frame_undistorted, frame_points_background[8], frame_points_background[6], color_background, 3);
 
-            for (size_t i = 0; i < draw_points.size(); i++)
-            {
-                Scalar color = colors[rand() % colors.size()], color_background = colors[rand() % colors.size()], color_dimension = colors[rand() % colors.size()];
-                line(frame_undistorted, frame_points[get<0>(draw_points[i])], frame_points_background[get<0>(draw_points[i])], color, 3);
-                line(frame_undistorted, frame_points_background[get<0>(draw_points[i])], frame_points_background[get<1>(draw_points[i])], color_background, 3);
-                line(frame_undistorted, frame_points[get<0>(draw_points[i])], frame_points[get<1>(draw_points[i])], color_dimension, 3);
-            }
+            // Then draw the pillars
+            line(frame_undistorted, frame_points[0], frame_points_background[0], color, 3);
+            line(frame_undistorted, frame_points[2], frame_points_background[2], color, 3);
+            line(frame_undistorted, frame_points[6], frame_points_background[6], color, 3);
+            line(frame_undistorted, frame_points[8], frame_points_background[8], color, 3);
+
+            // Next the lines in dimension
+            line(frame_undistorted, frame_points[0], frame_points[2], color_dimension, 3);
+            line(frame_undistorted, frame_points[2], frame_points[8], color_dimension, 3);
+            line(frame_undistorted, frame_points[6], frame_points[0], color_dimension, 3);
+            line(frame_undistorted, frame_points[8], frame_points[6], color_dimension, 3);
         }
 
         imshow("Webcam", frame);

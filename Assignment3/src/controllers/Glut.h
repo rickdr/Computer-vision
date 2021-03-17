@@ -8,17 +8,25 @@
 #ifndef GLUT_H_
 #define GLUT_H_
 
+#include "Reconstructor.h"
+
 #ifdef _WIN32
 #include <Windows.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
+
+#include <opencv2/core/core.hpp>
+#include <stddef.h>
+#include <vector>
+
+#include "Camera.h"
+
 #endif
 #ifdef __linux__
 #include <GL/glut.h>
 #include <GL/glu.h>
 #endif
 
-// i am not sure about the compatibility with this...
 #define MOUSE_WHEEL_UP   3
 #define MOUSE_WHEEL_DOWN 4
 
@@ -29,6 +37,7 @@ class Scene3DRenderer;
 
 class Glut
 {
+private:
 	Scene3DRenderer &m_scene3d;
 
 	static Glut* m_Glut;
@@ -49,10 +58,22 @@ class Glut
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 #endif
 
+	std::vector<std::vector<std::vector<Reconstructor::Voxel*>>> g_clusters;
+	std::vector<std::vector<cv::Mat>> g_colors;
+	std::vector<std::vector<cv::Mat>> g_histograms;
+
+	std::vector<std::vector<std::vector<Reconstructor::Voxel*>>> g_clustered_voxels;
+	std::vector<std::vector<std::vector<Reconstructor::Voxel*>>> g_path;
+	bool tracking;
+
 public:
 	Glut(
 			Scene3DRenderer &);
 	virtual ~Glut();
+	float point_distance(cv::Point2f point1, cv::Point2f point2);
+	void cluster_voxels(bool init_models);
+
+	void track_histograms();
 
 #ifdef __linux__
 	void initializeLinux(

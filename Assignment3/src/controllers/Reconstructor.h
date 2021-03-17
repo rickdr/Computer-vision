@@ -11,6 +11,7 @@
 #include <opencv2/core/core.hpp>
 #include <stddef.h>
 #include <vector>
+#include <map>
 
 #include "Camera.h"
 
@@ -39,18 +40,25 @@ private:
 
 	std::vector<cv::Point3f*> m_corners;    // Cube half-space corner locations
 
+	std::vector<cv::Mat> cam1, cam2, cam3, cam4;
+
 	size_t m_voxels_amount;                 // Voxel count
 	cv::Size m_plane_size;                  // Camera FoV plane WxH
 
 	std::vector<Voxel*> m_voxels;           // Pointer vector to all voxels in the half-space
 	std::vector<Voxel*> m_visible_voxels;   // Pointer vector to all visible voxels
 
+	// List of clusters with a tuple of scalar hist and secondly a list of voxel points
+	//std::map<cv::Point2f, std::vector<cv::Point2f>> m_clustered_visible_voxels;
 	void initialize();
 
 public:
 	Reconstructor(
 			const std::vector<Camera*> &);
 	virtual ~Reconstructor();
+
+
+	//cv::Mat updateColorModel();
 
 	void update();
 

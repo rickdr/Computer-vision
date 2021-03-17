@@ -16,6 +16,9 @@
 #include <iostream>
 
 #include "../utilities/General.h"
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgproc/types_c.h>
+#include <map>
 
 using namespace std;
 using namespace cv;
@@ -31,7 +34,7 @@ Reconstructor::Reconstructor(
 		const vector<Camera*> &cs) :
 				m_cameras(cs),
 				m_height(2048),
-				m_step(64)
+				m_step(32)
 {
 	for (size_t c = 0; c < m_cameras.size(); ++c)
 	{
@@ -43,6 +46,8 @@ Reconstructor::Reconstructor(
 
 	const size_t edge = 2 * m_height;
 	m_voxels_amount = (edge / m_step) * (edge / m_step) * (m_height / m_step);
+
+	//m_voxels_amount = (m_width / m_step) * (m_width / m_step) * (m_height / m_step);
 
 	initialize();
 }
@@ -95,6 +100,12 @@ void Reconstructor::initialize()
 	cout << "Initializing " << m_voxels_amount << " voxels ";
 	m_voxels.resize(m_voxels_amount);
 
+	this->cam1.push_back(Mat());
+	this->cam1.push_back(Mat());
+	this->cam1.push_back(Mat());
+	//.insert(Mat());
+	//cam1.insert(Mat());
+
 	int z;
 	int pdone = 0;
 #pragma omp parallel for schedule(static) private(z) shared(pdone)
@@ -122,9 +133,9 @@ void Reconstructor::initialize()
 				// Create all voxels
 				Voxel* voxel = new Voxel;
 				voxel->x = x;
-				voxel->y = y;
+				voxel->y = y + m_step;
 				voxel->z = z;
-				voxel->color = Scalar(0,0,0);
+				//voxel->color = Scalar(0, 0, 255);
 				voxel->camera_projection = vector<Point>(m_cameras.size());
 				voxel->valid_camera_projection = vector<int>(m_cameras.size(), 0);
 
@@ -134,9 +145,6 @@ void Reconstructor::initialize()
 				{
 					Point point = m_cameras[c]->projectOnView(Point3f((float) x, (float) y, (float) z));
 
-					// We take the forground image
-					Mat foreground = m_cameras[c]->getForegroundImage();
-
 					// Save the pixel coordinates 'point' of the voxel projection on camera 'c'
 					voxel->camera_projection[(int) c] = point;
 
@@ -144,9 +152,11 @@ void Reconstructor::initialize()
 					if (point.x >= 0 && point.x < m_plane_size.width && point.y >= 0 && point.y < m_plane_size.height)
 					{
 						// Substract color from foreground
-						/*Vec3i color = foreground.at<Vec3i>(point);
+						//Vec3b color = foreground.at<(point);
 						// Save the right color in the voxel
-						voxel->color = Scalar(color[0], color[1], color[2]);*/
+						/* voxel->color = Scalar(color[0], color[1], color[2]);*//*
+						Vec3b color_point = m_cameras[c]->getFrame().at<Vec3b>(Point(point.x, point.y));
+						voxel->color = Scalar(color_point[0], color_point[1], color_point[2]);*/
 
 						voxel->valid_camera_projection[(int)c] = 1;
 					}
@@ -177,15 +187,25 @@ void Reconstructor::update()
 	{
 		int camera_counter = 0;
 		Voxel* voxel = m_voxels[v];
-
 		for (size_t c = 0; c < m_cameras.size(); ++c)
 		{
 			if (voxel->valid_camera_projection[c])
 			{
+				/*if (c == 0)
+				{
+					updateColorModel(cam1, m_cameras[c]->getFrame());
+				}*/
 				const Point point = voxel->camera_projection[c];
 
 				//If there's a white pixel on the foreground image at the projection point, add the camera
 				if (m_cameras[c]->getForegroundImage().at<uchar>(point) == 255) ++camera_counter;
+
+				Mat frame = m_cameras[c]->getFrame();
+				//voxel->color = Sc
+				//cvtColor(frame.clone(), rgb_image, CV_BGR2RGB);
+				Vec3b& color_point = frame.at<Vec3b>(point);
+
+				//voxel->color = Scalar(color_point.val[0], color_point.val[1], color_point.val[2], 1);
 			}
 		}
 

@@ -33,10 +33,10 @@ namespace nl_uu_science_gmt
 		m_num(4),
 		m_sphere_radius(1850)
 	{
-		m_width = 960;
+		m_width = 640;
 		m_height = 480;
 		m_quit = false;
-		m_paused = true;
+		m_paused = false;
 		m_rotate = false;
 		m_camera_view = true;
 		m_show_volume = true;
@@ -62,7 +62,7 @@ namespace nl_uu_science_gmt
 		m_previous_camera = 0;
 
 		m_number_of_frames = m_cameras.front()->getFramesAmount();
-		m_current_frame = 160;
+		m_current_frame = 0;
 		m_previous_frame = -1;
 
 		const int max = 255;
@@ -130,7 +130,7 @@ namespace nl_uu_science_gmt
 
 		image = camera->getFrame();
 		// from BGR to HSV color space
-		cvtColor(image, hsv_image, CV_BGR2HSV);
+		cvtColor(image.clone(), hsv_image, CV_BGR2HSV);
 
 		vector<Mat> image_channels, camera_channels;
 		// Split the HSV-channels for further analysis

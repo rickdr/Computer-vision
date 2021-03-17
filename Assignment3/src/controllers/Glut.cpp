@@ -93,7 +93,17 @@ void Glut::initializeLinux(
  */
 int Glut::initializeWindows(const char* win_name)
 {
+	//m_Glut->tracking = false;
 	Scene3DRenderer &scene3d = m_Glut->getScene3d();
+	m_Glut->tracking = false;
+	for (size_t i = 0; i < scene3d.getCameras().size(); i++)
+	{
+		m_Glut->g_clusters.push_back(vector<vector<Reconstructor::Voxel*>>());
+		m_Glut->g_clustered_voxels.push_back(vector<vector<Reconstructor::Voxel*>>());
+		m_Glut->g_colors.push_back(vector<Mat>());
+		m_Glut->g_histograms.push_back(vector<Mat>());
+	}
+
 	arcball_reset();	//initialize the ArcBall for scene rotation
 
 	WNDCLASSEX windowClass;//window class
@@ -277,6 +287,7 @@ void Glut::keyboard(
 		}
 		else if (key == 'p' || key == 'P')
 		{
+			cout << "Cam" + scene3d.getCurrentCamera() << " Frame:" + scene3d.getCurrentFrame() << "\r\n";
 			bool paused = scene3d.isPaused();
 			scene3d.setPaused(!paused);
 		}
@@ -290,8 +301,17 @@ void Glut::keyboard(
 		}
 		else if (key == 'r' || key == 'R')
 		{
+			/*
 			bool rotate = scene3d.isRotate();
-			scene3d.setRotate(!rotate);
+			scene3d.setRotate(!rotate);*/
+			// Reset
+
+			cout << "Reseting env. \r\n";
+			scene3d.setCamera(0);
+			scene3d.setCurrentFrame(0);
+			scene3d.setPaused(false);
+			reset();
+			arcball_reset();
 		}
 		else if (key == 's' || key == 'S')
 		{
@@ -335,10 +355,49 @@ void Glut::keyboard(
 			reset();
 			arcball_reset();
 		}
+		else if (key == 'k' || key == 'K')
+		{
+			m_Glut->cluster_voxels(true);
+			cout << "New color model from frame \r\n";
+		}
+		else if (key == 'l' || key == 'L')
+		{
+			m_Glut->tracking = true;
+			m_Glut->cluster_voxels(false);
+			cout << "Starting identification \r\n";
+		}
 	}
 	else if (key_i > 0 && key_i <= (int) scene3d.getCameras().size())
 	{
 		scene3d.setCamera(key_i - 1);
+		reset();
+		arcball_reset();
+	}
+	else if (key_i > 4 && (key_i - 4) <= (int)scene3d.getCameras().size())
+	{
+		key_i = (key_i - 4);
+		scene3d.setCamera(key_i - 1);
+
+		int timeframe = scene3d.getCurrentFrame();
+		cout << "Camera " + key_i;
+		if (key_i == 1)
+		{
+			timeframe = 58;
+		}
+		else if (key_i == 2)
+		{
+			timeframe = 0;
+		}
+		else if (key_i == 3)
+		{
+			timeframe = 920;
+		}
+		else if (key_i == 4)
+		{
+			timeframe = 2452;
+		}
+		scene3d.setCurrentFrame(timeframe);
+		scene3d.setPaused(true);
 		reset();
 		arcball_reset();
 	}
@@ -449,9 +508,14 @@ LRESULT CALLBACK Glut::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
 			reshape(LOWORD(lParam), HIWORD(lParam));
 		}
 		break;
+		case WM_KEYDOWN:
+		{
+			cout << wParam;
+		}
+		break;
 		case WM_CHAR:
 		{
-			keyboard((unsigned char) LOWORD(wParam), 0, 0);
+			keyboard((unsigned char)LOWORD(wParam), 0, 0);
 		}
 		break;
 		case WM_LBUTTONDOWN:			// Left mouse button down
@@ -571,6 +635,165 @@ void Glut::display()
 #endif
 }
 
+float Glut::point_distance(Point2f point1, Point2f point2)
+{
+	return sqrt(pow(point2.x - point1.x, 2) + pow(point2.y - point1.y, 2) * 1.0);
+}
+
+void Glut::cluster_voxels(bool init_models)
+{
+	Scene3DRenderer& scene3d = m_Glut->getScene3d();
+	Mat labels, centers;
+	int center_amount = 4;
+	vector<Point2f> voxel_space;
+	vector<Reconstructor::Voxel*> voxels = scene3d.getReconstructor().getVisibleVoxels();
+	//60 bins
+	vector<vector<Reconstructor::Voxel*>> m_clusters;
+	vector<Mat> m_colors;
+	vector<Mat> m_histograms;
+
+	if (voxels.size() <= 0)
+	{
+		return;
+	}
+
+	for (int i = 0; i < center_amount; i++)
+	{
+		vector<Reconstructor::Voxel*> vec;
+		m_clusters.push_back(vec);
+	}
+
+	for (int i = 0; i < voxels.size(); i++)
+	{
+		voxel_space.push_back(Point2f(voxels[i]->x, voxels[i]->y));
+	}
+
+	bool local_min_check = true;
+	while (local_min_check == true)
+	{
+		kmeans(voxel_space, center_amount, labels, TermCriteria(CV_TERMCRIT_ITER, 10, 1.0), 10, KMEANS_PP_CENTERS, centers);
+
+		local_min_check = false;
+		for (int i = 0; i < labels.rows; i++)
+		{
+			if (local_min_check == true)
+			{
+				return;
+			}
+			Point2f voxel_position = voxel_space[i];
+			Point2f current_center = Point2f(centers.at<float>(labels.at<int>(i), 0), centers.at<float>(labels.at<int>(i), 1));
+			// Calculate difference to current center
+			float current_diff = point_distance(voxel_position, current_center);
+			for (int j = 0; j < center_amount; j++)
+			{
+				Point2f center = Point2f(centers.at<float>(j, 0), centers.at<float>(j, 1));
+				if (current_center == center)
+				{
+					continue;
+				}
+				// Calculate if one of the other centers is closer, if so we start over
+				if (point_distance(voxel_position, center) < current_diff)
+				{
+					// Currently chosen center is further
+					local_min_check = true;
+					cout << "found local min";
+					return;
+				}
+			}
+			m_clusters.at(labels.at<int>(i)).push_back(voxels.at(i));
+		}
+	}
+
+	int camera = scene3d.getCurrentCamera();
+	Camera* cam = scene3d.getCameras()[camera];
+	Mat frame;
+	// Use the foreground mask over the frame
+	copyTo(cam->getFrame(), frame, cam->getForegroundImage());
+
+	for (size_t i = 0; i < m_clusters.size(); i++)
+	{
+		Mat color_image = Mat(1, m_clusters.at(i).size(), CV_8UC3);
+
+		for (size_t j = 0; j < m_clusters.at(i).size(); j++)
+		{
+			Reconstructor::Voxel* voxel = m_clusters.at(i).at(j);
+			if (voxel->x == 0 && voxel->y == 0)
+			{
+				continue;
+			}
+			if (voxel->valid_camera_projection[camera])
+			{
+				const Point point = voxel->camera_projection[camera];
+				color_image.at<Vec3b>(0, j) = frame.at<Vec3b>(point);
+			}
+		}
+
+		//m_colors.push_back(color_image);
+		Mat hist, hist_norm, hsv_image;
+
+		cvtColor(color_image.clone(), hsv_image, CV_BGR2HSV);
+
+		int h_channel = 0, s_channel = 1, v_channel = 2;
+		int channels[] = { h_channel, s_channel, v_channel };
+		int h_bin = 60, s_bin = 60, v_bin = 60;
+		const int bin_sizes[] = { h_bin, s_bin, v_bin };
+		float h_range[] = { 0, 180 }, s_range[] = { 0, 256 }, v_range[] = { 0, 256 };
+		const float* ranges[] = { h_range, s_range, v_range };
+		bool uniform = true; bool accumulate = false;
+
+		calcHist(&hsv_image, 1, channels, Mat(), hist, 2, bin_sizes, ranges, true, false);
+
+		normalize(hist, hist_norm, 1.0, 0, 2);
+
+		m_histograms.push_back(hist_norm);
+	}
+
+	if (init_models)
+	{
+		m_Glut->g_clusters.at(camera) = m_clusters;
+		//m_Glut->g_colors.at(camera) = m_colors;
+		m_Glut->g_histograms.at(camera) = m_histograms;
+		return;
+	}
+
+	if (g_histograms.at((center_amount - 1)).size() == 0)
+	{
+		cout << "No base color models";
+		return;
+	}
+
+	vector<vector<Reconstructor::Voxel*>> m_clustered_voxels;
+
+	for (size_t i = 0; i < m_histograms.size(); i++)
+	{
+		std::vector<Reconstructor::Voxel*> vec;
+		m_clustered_voxels.push_back(vec);
+	}
+
+	for (size_t i = 0; i < m_histograms.size(); i++)
+	{
+		double best_diff = 0;
+		int best_hist = -1;
+		vector<Mat> model_hists = m_Glut->g_histograms.at(i);
+		for (size_t j = 0; j < model_hists.size(); j++)
+		{
+			double diff = compareHist(model_hists.at(j), m_histograms.at(i), CV_COMP_CORREL);
+			if (diff > best_diff)
+			{
+				best_diff = diff;
+				best_hist = j;
+			}
+		}
+		if (best_hist > -1)
+		{
+			m_clustered_voxels.at(best_hist) = m_clusters.at(i);
+		}
+	}
+	m_Glut->g_clustered_voxels.at(camera) = m_clustered_voxels;
+
+	return;
+}
+
 /**
  * - Update the scene with a new frame from the video
  * - Handle the keyboard input from the OpenCV window
@@ -660,6 +883,11 @@ void Glut::update(
 
 	// Update the frame slider position
 	setTrackbarPos("Frame", VIDEO_WINDOW, scene3d.getCurrentFrame());
+
+	if (m_Glut->tracking)
+	{
+		m_Glut->cluster_voxels(false);
+	}
 
 #ifdef __linux__
 	glutSwapBuffers();
@@ -853,14 +1081,55 @@ void Glut::drawVoxels()
 	glTranslatef(0, 0, 0);
 	glPointSize(2.0f);
 	glBegin(GL_POINTS);
-
-	vector<Reconstructor::Voxel*> voxels = m_Glut->getScene3d().getReconstructor().getVisibleVoxels();
-
-	for (size_t v = 0; v < voxels.size(); v++)
+	Scene3DRenderer* scene3d = &m_Glut->getScene3d();
+	vector<vector<Reconstructor::Voxel*>> voxels;
+	if (m_Glut->tracking)
 	{
-		glColor3f(voxels[v]->color[0], voxels[v]->color[1], voxels[v]->color[2]);
-		glVertex3f((GLfloat) voxels[v]->x, (GLfloat) voxels[v]->y, (GLfloat) voxels[v]->z);
+		voxels = m_Glut->g_clustered_voxels.at(scene3d->getCurrentCamera());
 	}
+	else if (m_Glut->g_clusters.size() >= scene3d->getCurrentCamera()) 
+	{
+		voxels = m_Glut->g_clusters.at(scene3d->getCurrentCamera());
+	}
+
+	if (voxels.size() > 0)
+	{
+		for (size_t v = 0; v < voxels.size(); v++)
+		{
+			for (size_t j = 0; j < voxels.at(v).size(); j++)
+			{
+				Reconstructor::Voxel* voxel = voxels.at(v).at(j);
+				if (v == 0)
+				{
+					glColor4f(0, 0, 255, 1);
+				}
+				else if (v == 1)
+				{
+					glColor4f(140, 20, 0, 1);
+				}
+				else if (v == 2)
+				{
+					glColor4f(0, 20, 0, 1);
+				}
+				else if (v == 3)
+				{
+					glColor4f(0, 20, 1400, 1);
+				}
+				glVertex3f((GLfloat)voxel->x, (GLfloat)voxel->y, (GLfloat)voxel->z);
+			}
+		}
+	}
+	else
+	{
+		vector<Reconstructor::Voxel*> voxels = m_Glut->getScene3d().getReconstructor().getVisibleVoxels();
+
+		for (size_t v = 0; v < voxels.size(); v++)
+		{
+			glColor3f(voxels[v]->color[0], voxels[v]->color[1], voxels[v]->color[2]);
+			glVertex3f((GLfloat)voxels[v]->x, (GLfloat)voxels[v]->y, (GLfloat)voxels[v]->z);
+		}
+	}
+
 
 	glEnd();
 	glPopMatrix();
